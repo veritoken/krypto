@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+   <div id="out"></div>
+   <script>    
+    D=document;
+    function GEBI(id){
+	 return document.getElementById(id);}
+    function outs(s){
+	var tn = D.createTextNode(s);
+	var li = D.createElement("li");
+	li.appendChild(tn);
+	GEBI("out").appendChild(li);
+    }
+    var Module = {
+      onRuntimeInitialized: function() {
+          console.log('lerp result: ' +
+		      Module.lerp(1, 2, 0.5));
+	  outs("QWERT1");
+	  outs("QWERT2");
+          Module.forkOff();
+          console.log('lerp2result: ' +
+		      Module.lerp2(1, 2, 0.5));
+      }
+    };
+  </script>
+  <script src="quick.js"></script>
+</html>

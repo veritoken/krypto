@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+  <div>
+    <li>Controls:
+      <input type=checkbox id="usehtml" checked>HTML Output<br>
+      <input type=checkbox id="erase"   checked>Erase on Send
+    </li>
+    <li>Seed:
+      <button onclick=setseed()>Enter Seed</button>
+      <button onclick=dumpseed()>Dump Seed</button>
+      <button onclick=createSeed()>Create Seed</button>
+      <button onclick=MyCats.newcat()>New Cat</button>
+      <button onclick=usecat(MyCats,"alice")>Alice Cat</button>
+      <button onclick=usecat(MyCats,"bob")  >Bobcat</button>
+      <button onclick=usecat(MyCats,"chuck")>Chuck Cat</button>
+      <button onclick=MyCats.dump()>Dump Cats</button>
+    </li>
+    <li>Public Key: <span id="publickey"><i>Unset</i></span></li> <hr>
+    <textarea id="textarea" placeholder="blah . . ."
+	      style="width: 100%" rows=5></textarea><br>
+    <button onclick=meow()>Meow</button>
+    <button onclick=purr()>Purr</button>
+    <button onclick=hiss()>Hiss</button>
+    <button onclick=xclear()>Clear</button>
+  </div>
+  <div id="out"></div>
+  <script>
+    D=document;
+    function GEBI(id){return D.getElementById(id);}
+    function outt(s){GEBI("out").appendChild(D.createElement("li"))
+		     .appendChild(D.createTextNode(s));}
+    function outh(s){
+	var d = D.createElement("div");
+	d.style = "border: 1px solid red";
+	var e = GEBI("out").appendChild(d);
+	e.innerHTML = s;}
+    function outstr(s){if(GEBI("usehtml").checked) outh(s); else outt(s);}
+    var zero8  = "00000000";
+    var zero16 = "0000000000000000";
+    var zero32 = zero16 + zero16;
+    var zero64 = zero32 + zero32;
+    function padleft8 (x){return((zero8 +x).substr(x.length, 8));}
+    function padleft16(x){return((zero16+x).substr(x.length,16));}
+    function padleft32(x){return((zero32+x).substr(x.length,32));}
+    function padleft64(x){return((zero64+x).substr(x.length,64));}
+  </script>
+  <script>
+    function connect(url){
+	// define onconnect and onpub as callbacks
+	var ws = new WebSocket(url || "wss://ccl.io/ps/");
+	ws.onopen =function(e){outt("PubSub Cxn Opened");ws.onconnect(e);};
+	ws.onclose=function(e){outt("PubSub Cxn Closed");};
+	ws.onerror=function(e){outt("PubSub Cxn Error");};
+	ws.onmessage=function(e){
+	    //console.log(`Q1[${e.data}]ZZ`);
+	    var arr3 = e.data.split(";");
+	    e.ttl = arr3[0];
+	    e.channel = arr3[1];
+	    var arr4 = arr3.splice(2);
+	    e.message = arr4.join(";");
+	    if(!ws.myid) ws.myid = arr3[1];
+	    return ws.onpub(e);}
+	ws.sub = function(chn){    ws.send("0;+;"+chn);};
+	ws.unsub=function(chn){    ws.send("0;-;"+chn);};
+	ws.pub = function(chn,msg){ws.send("3;" + chn+";"+msg);};
+	ws.onconnect=function(e){console.log("onconnect Not Yet Implemented");};
+	ws.onpub=function(e){console.log("onpub Not Yet Implemented");};
+	return ws;}
+  </script>
+  <script>
+    class CatWallet {
+	constructor(){
+	    this.cats = new Map()
+		.set('zero' ,{seed:padleft64("0")})
+		.set('alice',{seed:padleft64("1")})
+		.set('bob'  ,{seed:padleft64("2")})
+		.set('chuck',{seed:padleft64("3")});
+	    this.cats.forEach(function(v,k,a){
+		xsetseed(v.seed);
+		v.pubk = getpublic().substr(6, 64);
+		v.name = k;});}
+	dump(){ console.log("CATS", this);     }
+	get(name){ return this.cats.get(name); }
+	findcat(publickey){
+	    for(var v of this.cats.values())
+		if(v.pubk == publickey)
+		    return v;}
+	newcat(){
+	    var pub = prompt("public key");
+	    var name = prompt("cat's nickname");
+	    this.cats.set(name, {"name":name, "pubk": pub});}
+	addCat(name){
+	    this.cats.set(name, {"name": name,
+				 "seed": getseed().substr(6, 64),
+				 "pubk": getpublic().substr(6, 64)});}};
+  </script>
+  <script>
+    var textarea = GEBI("textarea");
+    var publickey = GEBI("publickey");
+    function meow(){ws.sendit("meow: " + textarea.value);}
+    function purr(){ws.sendit("purr: " + textarea.value);}
+    function hiss(){ws.sendit("hiss: " + textarea.value);}
+    function xclear(){textarea.value='';textarea.focus();}
+    function dumpseed(){	console.log(getseed());  }
+    function displaypublic(){publickey.innerText=getpublic();}
+    function usecat(cats,name){xsetseed(cats.get(name).seed);displaypublic();}
+    function createSeed(){
+	createseed();
+	displaypublic();
+	var name = prompt("What's the name of this seed?");
+	MyCats.addCat(name);}
+    function setseed(){
+	var hex = prompt("What's your seed? (Hex format)");
+	xsetseed(hex);
+	displaypublic();
+	var name = prompt("cat's nickname?");
+	MyCats.addCat(name);}
+  </script>
+  <script>
+    var Module = {
+	onRuntimeInitialized: function() {
+	    createseed  = Module.cwrap('createseed',  'void',   []);
+	    getseed     = Module.cwrap('getseed',     'string', []);
+	    getpublic   = Module.cwrap('getpublic',   'string', []);
+	    getprivate  = Module.cwrap('getprivate',  'string', []);
+	    xsetseed    = Module.cwrap('xsetseed',    'string', ['string']);
+	    xsetprivate = Module.cwrap('xsetprivate', 'string', ['string']);
+	    xsignitlong = Module.cwrap('xsignitlong', 'string', ['string']);
+	    xsignit     = Module.cwrap('xsignit',     'string', ['string']);
+	    xverify     = Module.cwrap('xverify',     'int',    ['string']);
+
+	    MyCats = new CatWallet();
+	    usecat(MyCats, "zero");
+	    //MyCats.dump();
+
+	    ws = connect();
+	    ws.onconnect = function(e){
+		ws.sub("main");
+		ws.sub("weird");
+		var msg = "greeting: yo world";
+		ws.pub("main", xsignit(msg)+msg);
+	    };
+	    ws.onpub = function(e){
+		if(!xverify(e.message))
+		    return outt("ERRANT PACKET:" + e.message);
+		var from = e.message.substr(6, 64);
+		var pay = e.message.split('\n').splice(3).join("<br>");
+		var cat = MyCats.findcat(from);
+		function mkMessage(name, verb, msg){
+		    outstr(`<h2>${name} ${verb}</h2>${msg}`);}
+		if(!cat)   outstr(`<h5>anonymous ${from.substr(6)}</h5>${pay}`);
+		else if(pay.startsWith("meow: "))mkMessage(cat.name,"meows", pay.substr(5));
+		else if(pay.startsWith("hiss: "))mkMessage(cat.name,"hisses",pay.substr(5));
+		else if(pay.startsWith("purr: "))mkMessage(cat.name,"purrs", pay.substr(5));
+		else                             mkMessage(cat.name,"UNKNOWN",pay);
+	    };
+	    ws.sendit = function(txt){
+		var s0 = xsignit(txt);
+		var msg = s0 + txt;
+		//console.log(msg);
+		var s2 = xverify(msg);
+		//console.log("xverify" + s2);
+		ws.pub("main", msg);
+		if(GEBI("erase").checked) textarea.value = '';
+	    };
+	}
+    };
+  </script>
+  <script src="test2.js"></script>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+   <div id="out"></div>
+   <script>    
+     D=document;
+     function GEBI(id){
+	 return D.getElementById(id);}
+     function outs(s){
+	 var tn = D.createTextNode(s);
+	 var li = D.createElement("li");
+	 li.appendChild(tn);
+	 GEBI("out").appendChild(li);
+     }
+     var Module = {
+	 onRuntimeInitialized: function() {
+             console.log('lerp result: ' +
+			 Module.lerp(1, 2, 0.5));
+	     outs("QWERT1");
+	     outs("QWERT2");
+	     
+	     hello = Module.cwrap('hello_world', 'string', []);
+	     hello2 = Module.cwrap('hello_to', 'string', ['string']);
+	     
+	     xsignit = Module.cwrap('xsignit', 'string', ['string']);
+	     xverify = Module.cwrap('xverify', 'int', ['string']);
+	     
+	     outs(hello());
+	     outs(hello2("dude"));
+	     
+             Module.forkOff(34, 12);
+	     
+	     var m1 = "xyz\n";
+	     
+	     var s0 = xsignit(m1);
+	     outs("it's " + s0);
+	     
+	     var sig = s0;
+	     outs("2it's " + sig);	  
+	     
+	     var s2 = xverify(sig +m1);
+	     outs("it's " + s2);
+	     var s3 = xverify(sig + "wrong");
+	     outs("it's " + s3);
+	     var s4 = xverify("no way" + m1);
+	     outs("it's " + s4);
+	     
+             console.log('lerp2result: ' +
+			 Module.lerp2(1, 2, 0.5));
+	 }
+     };
+   </script>
+   <script src="test1.js"></script>
+   <script>
+     var loc = "wss://ccl.io/ps/";
+     app = new WebSocket(loc);
+     app.onopen =function(e){outs("OO");
+			     app.state=0;app.onconnect(e);};
+     app.onclose=function(e){outs("CC");};
+     app.onerror=function(e){outs("EE");};
+     app.onmessage=function(e){
+	 console.log("QQQ1", e.data, "ZZZ");
+	 var arr = e.data.split(";", 3);
+	 console.log("QQQ2", arr, "ZZZ");
+	 e.ttl = arr[0];
+	 e.channel = arr[1];
+	 e.message = arr[2];
+	 if(!app.myid)
+	     app.myid = arr[1];
+	 return app.onpub(e);}
+     app.sub = function(chn){    app.send("0;+;"+chn);};
+     app.unsub=function(chn){    app.send("0;-;"+chn);};
+     app.pub = function(chn,msg){app.send("3;" + chn+";"+msg);};
+     app.onconnect=function(e){
+	 app.sub("main");
+	 app.sub("weird");
+	 app.pub("main", "yo world");
+     };
+     app.onpub=function(e){
+	 outs("I:" + app.myid);
+	 outs("C:" + e.channel);
+	 outs("D:" + e.data);
+	 outs("M:" + e.message);
+     };
+   </script>
+</html>

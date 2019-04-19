@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+  <script>
+    D=document;
+    function GEBI(id){
+	return D.getElementById(id);}
+    function outs(s){
+	var tn = D.createTextNode(s);
+	var li = D.createElement("li");
+	li.appendChild(tn);
+	GEBI("out").appendChild(li);
+    }
+  </script>
+  <div>
+    <li>Seed:
+      <button onclick=setSeed()>Enter Seed</button>
+      <button onclick=dumpSeed()>Dump Seed</button>
+      <button onclick=createSeed2()>Create Seed</button>
+      <button onclick=newcat()>New Cat</button>
+      <button onclick=usecat("alice")>Alice Cat</button>
+      <button onclick=usecat("bob")>Bobcat</button>
+      <button onclick=usecat("chuck")>Chuck Cat</button>
+    </li>
+    <li>Public Key: <span id="publickey">???</span> </li>
+    <hr>
+    <textarea id="textarea" placeholder="blah . . ."></textarea><br>
+    <button onclick=meow()>Meow</button>
+    <button onclick=purr()>Purr</button>
+    <button onclick=hiss()>Hiss</button>
+    <button onclick=xclear()>Clear</button>
+  </div>
+  <div id="out"></div>
+  <script>
+    var textarea = GEBI("textarea");
+    var publickey = GEBI("publickey");
+
+    function meow(){
+	var txt = textarea.value;
+	txt = "meow: " + txt;
+	app.sendit(txt);
+    }
+    function purr(){
+	var txt = textarea.value;
+	txt = "purr: " + txt;
+	app.sendit(txt);
+    }
+    function hiss(){
+	var txt = textarea.value;
+	txt = "hiss: " + txt;
+	app.sendit(txt);
+    }
+    function xclear(){
+	textarea.value='';
+	textarea.focus();
+    }
+    function addCat(name){
+	Cats[name] = {"name": name,
+		      "seed": getSeed().substr(6, 64),
+		      "pubk": getPublic().substr(6, 64)};
+
+    }
+    function dumpSeed(){
+	console.log(getSeed());
+    }
+    function createSeed2(){
+	createSeed();
+	setPublic();
+	var name = prompt("What's the name of this seed?");
+	addCat(name);
+
+    }
+    function setSeed(){
+	var hex = prompt("What's your seed? (Hex format)");
+	xsetseed(hex);
+	setPublic();
+	var name = prompt("cat's nickname?");
+	addCat(name);
+    }
+    function setPublic(){
+	publickey.innerText = getPublic();
+    }
+  </script>
+  <script>
+    Cats = {};
+    Cats['zero' ]={seed:"0000000000000000000000000000000000000000000000000000000000000000"};
+    Cats['alice']={seed:"0000000000000000000000000000000000000000000000000000000000000001"};
+    Cats['bob'  ]={seed:"0000000000000000000000000000000000000000000000000000000000000002"};
+    Cats['chuck']={seed:"0000000000000000000000000000000000000000000000000000000000000003"};
+    function findcat(name){
+	for(var k in Cats){
+	    var v =  Cats[k];
+	    if(v.pubk == name)
+		return v;
+	}
+    }
+    function newcat(){
+	var pub = prompt("public key");
+	var name = prompt("cat's nickname");
+	Cats[name] = {"name":name, "pubk": pub};
+    }
+    function usecat(name){
+	xsetseed(Cats[name].seed);
+	setPublic();
+    }
+    var Module = {
+	onRuntimeInitialized: function() {
+	    createSeed  = Module.cwrap('createSeed',  'void',   []);
+	    getSeed     = Module.cwrap('getSeed',     'string', []);
+	    getPublic   = Module.cwrap('getPublic',   'string', []);
+	    getPrivate  = Module.cwrap('getPrivate',  'string', []);
+	    xsetseed    = Module.cwrap('xsetseed',    'string', ['string']);
+	    xsetprivate = Module.cwrap('xsetprivate', 'string', ['string']);
+	    xsignitlong = Module.cwrap('xsignitlong', 'string', ['string']);
+	    xsignit     = Module.cwrap('xsignit',     'string', ['string']);
+	    xverify     = Module.cwrap('xverify',     'int',    ['string']);
+	    for(var k in Cats){
+		xsetseed(Cats[k].seed);
+		Cats[k].pubk = getPublic().substr(6, 64);
+		Cats[k].name = k;
+	    }
+	    usecat('zero');
+	    app = connect();
+	}
+    };
+    function connect(url){
+	var app = new WebSocket(url || "wss://ccl.io/ps/");
+	app.onopen =function(e){outs("OO");
+				app.state=0;app.onconnect(e);};
+	app.onclose=function(e){outs("CC");};
+	app.onerror=function(e){outs("EE");};
+	app.onmessage=function(e){
+	    var arr = e.data.split(";", 3);
+	    console.log("QQQ2", arr, "ZZZ");
+	    e.ttl = arr[0];
+	    e.channel = arr[1];
+	    e.message = arr[2];
+	    if(!app.myid)
+		app.myid = arr[1];
+	    return app.onpub(e);}
+	app.sub = function(chn){    app.send("0;+;"+chn);};
+	app.unsub=function(chn){    app.send("0;-;"+chn);};
+	app.pub = function(chn,msg){app.send("3;" + chn+";"+msg);};
+	app.onconnect=function(e){
+	    app.sub("main");
+	    app.sub("weird");
+	    var msg = "greeting: yo world";
+	    app.pub("main", xsignit(msg)+msg);
+	};
+	app.onpub=function(e){
+	    if(!xverify(e.message))
+		return outs("ERRANT PACKET:" + e.message);
+	    var from = e.message.substr(6, 64);
+	    var payload = e.message.split('\n').splice(3);
+	    var cat = findcat(from);
+	    console.log("CAT", cat);
+	    if(cat){
+		outs(`AWESOME:${cat.name}:${payload}`);
+	    }else{
+		outs(`COOL:${from.substr(6)}...:${payload}`);
+	    }
+	};
+	app.sendit = function(txt){
+	    var s0 = xsignit(txt);
+	    var msg = s0 + txt;
+	    console.log(msg);
+	    var s2 = xverify(msg);
+	    outs("xverify" + s2);
+	    app.pub("main", msg);
+	};
+	return app;}
+  </script>
+  <script src="test2.js"></script>
+</html>
